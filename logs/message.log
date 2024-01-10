@@ -1,0 +1,8 @@
+2024-01-10 23:22:08,701 - INFO - Logger initialized in main
+2024-01-10 23:22:08,701 - INFO - Generating training parameters.
+2024-01-10 23:22:08,701 - INFO - Updating training parameters from configs/training_config.yamlconfig file
+2024-01-10 23:22:08,703 - INFO - Generating sample training data.
+2024-01-10 23:22:08,708 - INFO - Preprocessing training data.
+2024-01-10 23:22:08,712 - INFO - Starting the classifier training process.
+2024-01-10 23:22:08,824 - INFO - Training process finished.
+2024-01-10 23:22:08,827 - INFO - Model saved to ./trained_models/trained_classifier.joblib.
