@@ -35,10 +35,13 @@ A cron job is defined by a line of text, known as a "cron expression", that cons
 - `0 0 1 * *` - Run the command on the first day of every month at midnight.
 
 ### Basic Commands:
-`crontab -l  # list cron jobs for the user`
-`crontab -e  # create a new cron job  # for first time users, they might have to select default file editor in the terminal.`
-`crontab -r  # remove the crontab files`
-`crontab -u username -e  # edit crontab file of a different user "username"`
+```
+crontab -l  # list cron jobs for the user
+crontab -e  # create a new cron job  # for first time users, they might have to select default file editor in the terminal
+crontab -r  # remove the crontab files
+crontab -u username -e  # edit crontab file of a different user "username"
+```
+
 ## Setting Up a Cron Job
 
 To set up a cron job, follow these steps:
