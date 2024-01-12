@@ -40,6 +40,24 @@ def objective_fn(
     val_pool: Pool = None,
     class_weights: Optional[Dict[Any, Any]] = None
 ) -> float:
+    """Objective function for hyperparameter tuning in CatBoostClassifier.
+
+    This function is designed to be used with an Optuna optimization study.
+    It suggests hyperparameters for a given trial, trains a CatBoostClassifier
+    with these parameters, and computes its accuracy on the validation pool.
+
+    Args:
+        trial (Trial): An Optuna trial object that suggests hyperparameters.
+        train_pool (Pool): The training data pool.
+        val_pool (Pool, optional): The validation data pool. If None, the
+            training pool is used for evaluation. Defaults to None.
+        class_weights (Optional[Dict[Any, Any]], optional): Class weights for
+            handling class imbalance during model training. Defaults to None.
+
+    Returns:
+        float: The accuracy of the CatBoostClassifier model trained with the
+            suggested hyperparameters on the validation pool.
+    """
     trial_params = {
         'iterations': trial.suggest_int(
             'iterations', 500, 1000, 50),
@@ -79,6 +97,30 @@ def find_optimal_hyperparameters(
     val_pool: Pool = None,
     class_weights: Optional[Dict[Any, Any]] = None
 ) -> Dict:
+    """Determines the optimal hyperparameters for a CatBoostClassifier model.
+
+    The function operates in two modes based on the 'tune_parameters' flag:
+    1. If 'tune_parameters' is False, it returns a set of default parameters.
+    2. If 'tune_parameters' is True, it performs hyperparameter tuning using
+       the provided training and validation data pools.
+
+    Hyperparameter tuning is done via a study that maximizes a given metric
+    (e.g., accuracy) and uses a random sampler and a median pruner.
+
+    Args:
+        train_pool (Pool): The training data pool used for model fitting and
+            hyperparameter tuning.
+        tune_parameters (bool): Flag indicating whether to tune parameters.
+            If False, the function returns default parameters.
+        val_pool (Pool, optional): The validation data pool used for evaluating
+            the model during the tuning process. Defaults to None.
+        class_weights (Optional[Dict[Any, Any]], optional): Class weights to
+            handle class imbalance. Defaults to None.
+
+    Returns:
+        Dict: A dictionary containing the optimal hyperparameters. If
+            'tune_parameters' is False, it returns default hyperparameters.
+    """
     if not tune_parameters:
         default_params = {
             'iterations': 20,
@@ -104,7 +146,6 @@ def find_optimal_hyperparameters(
         n_trials=5
     )
     optimal_parameters = {**study.best_params}
-    print(type(study.best_params))
 
     return optimal_parameters
 
@@ -114,6 +155,19 @@ def train(
     training_data: pd.DataFrame,
     training_params: TrainingParameters
 ) -> CatBoostClassifier:
+    """Trains a CatBoostClassifier using the provided training data
+    and parameters.
+
+    Args:
+        args (argparse.Namespace): Contains command line arguments,
+            specifically 'tune_parameters' for hyperparameter tuning.
+        training_data (pd.DataFrame): DataFrame containing the training data.
+        training_params (TrainingParameters): Object containing training
+            parameters such as 'target_col', 'validation_set_size', etc.
+
+    Returns:
+        CatBoostClassifier: The trained CatBoost classifier model.
+    """
     logger.info('Starting the classifier training process.')
     cat_features = list(training_data.select_dtypes(
         include=['category']).columns)
@@ -152,6 +206,19 @@ def train(
 
 
 def save_model(model: Type, training_params: TrainingParameters) -> None:
+    """Saves the trained model to a specified file path and in the database.
+
+    Args:
+        model (Type): The trained model that needs to be saved. This could be
+            any model object that is compatible with joblib for serialization.
+        training_params (TrainingParameters): An object containing training
+            parameters, including the directory and filename where the model
+            should be saved.
+
+    Returns:
+        None: This function does not return anything.
+    """
+
     model_filepath = os.path.join(
         training_params.model_directory,
         training_params.model_name
@@ -165,23 +232,32 @@ def save_model(model: Type, training_params: TrainingParameters) -> None:
     return None
 
 
-def load_model(
-    model_filepath: str = './trained_models/trained_classifier.joblib'
-) -> CatBoostClassifier:
-    try:
-        model = joblib.load(model_filepath)
-        logger.info(f'Trained model loaded from {model_filepath}')
-    except Exception as error:
-        logger.error(f'Trained model could not be loaded -> {error}')
-
-    return model
-
-
-def generate_predictions():
-    pass
-
-
 def main(args: argparse.Namespace) -> None:
+    """Main function to execute the model training process.
+
+    This function follows these major steps:
+    1. Load configuration and training parameters.
+    2. Update training parameters from a configuration file if specified.
+    3. Load and preprocess the training data.
+    4. Train the model with the given arguments, training data, and parameters.
+    5. Save the trained model and its metrics.
+
+    Args:
+        args (argparse.Namespace): Arguments received from the command line.
+            It includes options like config_file which specifies the path
+            to a configuration file for updating training parameters.
+
+    Returns:
+        None: This function returns None.
+
+    Note:
+        - The function uses a default sample data loader (`load_sample_data`)
+          which ideally should be replaced with a `query_training_data`
+          function for real-world applications.
+        - The `train` function is responsible for the actual training process.
+          It takes training data, parameters, and additional args as input.
+    """
+
     # Load Config, Training Parameters
     logger.info('Generating training parameters.')
     training_params = TrainingParameters()
@@ -191,6 +267,8 @@ def main(args: argparse.Namespace) -> None:
         training_params = TrainingParameters.from_yaml(args.config_file)
 
     # Load Training Data & Train Model
+    # Normally query_training_data function should be called in place of
+    # load_sample_data function
     training_data = load_sample_data()
     training_data = preprocess_data(training_data)
     classifier = train(args, training_data, training_params)
@@ -201,7 +279,7 @@ def main(args: argparse.Namespace) -> None:
 
 
 if __name__ == '__main__':
-    # conda activate tf_m1
+    # conda activate tf_m1 <venv>
     parser = argparse.ArgumentParser(
         description='Train a machine learning model'
     )
