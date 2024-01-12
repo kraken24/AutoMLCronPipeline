@@ -3,3 +3,6 @@ model_directory: 'trained_models/'
 model_name: 'trained_classifier.joblib'
 accuracy_threshold: 0.95
 validation_set_size: 0.20
+schema: 'schema'
+table: 'table'
+time_interval_in_days: 20

@@ -5,17 +5,10 @@ import numpy as np
 import pandas as pd
 import matplotlib.pyplot as plt
 import seaborn as sns
+import psycopg2 as pg
 
 from sklearn.utils.class_weight import compute_class_weight
-from sklearn.metrics import (
-    classification_report,
-    accuracy_score,
-    f1_score,
-    precision_score,
-    recall_score,
-    roc_auc_score,
-    confusion_matrix
-)
+from sklearn.metrics import classification_report, confusion_matrix
 from catboost import CatBoostClassifier
 
 import logging
@@ -29,6 +22,9 @@ class TrainingParameters:
     model_name: str = 'trained_classifier.joblib'
     accuracy_threshold: float = 0.95
     validation_set_size: float = 0.20
+    schema: str = 'schema'
+    table: str = 'table'
+    time_interval_in_days: int = 20
 
     @staticmethod
     def from_yaml(file_path: str):
@@ -37,7 +33,44 @@ class TrainingParameters:
         return TrainingParameters(**params)
 
 
+def query_training_data(db_params) -> pd.DataFrame:
+    """Downloads data from the last 20 days from a specified PostgreSQL table.
+    The required parameters are defined in db_params dataclass.
+
+    Args:
+        db_params (dict): Database parameters such as schema, table etc.
+
+    Returns:
+        DataFrame: Pandas DataFrame containing the data from the last 20 days.
+    """
+    try:
+        conn = pg.connect("dbname=test user=postgres password=secret")
+        query = f"""
+            SELECT *
+            FROM {db_params.schema}.{db_params.table}
+            WHERE date BETWEEN CURDATE() - INTERVAL {db_params.time_interval_in_days} DAY AND CURDATE()
+            """
+
+        return pd.read_sql_query(query, conn)
+
+    except Exception as e:
+        print(f'Error while getting data from databank: {e}')
+    finally:
+        if conn is not None:
+            conn.close()
+
+
 def load_sample_data(samples: int = 10000) -> pd.DataFrame:
+    """Function to load sample training data. Normally this function
+    would be replaced with query_training-data function which dynamically
+    loads the latest data from the database.
+
+    Args:
+        samples (int, optional): Size of training data. Defaults to 10000.
+
+    Returns:
+        pd.DataFrame: Training dataframe
+    """
     logger.info('Generating sample training data.')
     housing_data = pd.DataFrame({
         'age_of_house': np.random.randint(0, 100, samples),
@@ -58,6 +91,20 @@ def load_sample_data(samples: int = 10000) -> pd.DataFrame:
 
 
 def get_class_weights(y_train: np.ndarray) -> Dict:
+    """Calculates class weights for the given training labels.
+
+    This function is useful for handling class imbalance in classification
+    tasks. It computes the weights for each class to balance the dataset.
+
+    Args:
+        y_train (np.ndarray): An array of training labels.
+
+    Returns:
+        Dict: A dictionary where keys are classes and values are the computed
+              class weights. This helps in balancing the classes during
+              model training.
+
+    """
     classes = np.unique(y_train)
     weights = compute_class_weight(
         class_weight='balanced',
@@ -70,9 +117,16 @@ def get_class_weights(y_train: np.ndarray) -> Dict:
 
 
 def preprocess_data(training_data: pd.DataFrame) -> pd.DataFrame:
-    """
-    # Data Imputation
-    # Data Normalisation
+    """This function has been limited in its preprocessing capabilities.
+    It could be extended to include imputation, normalisation and other
+    preprocessing steps depending on the problem. Here it only sets the
+    correct data types and eliminates redundant columns.
+
+    Args:
+        training_data (pd.DataFrame): Training data
+
+    Returns:
+        pd.DataFrame: Preprocessed training data
     """
     logger.info('Preprocessing training data.')
 
@@ -107,26 +161,25 @@ def print_classification_report(
     X_val: np.ndarray,
     y_val: np.ndarray
 ) -> None:
-    y_pred = classifier.predict(X_val)
-    y_proba = classifier.predict_proba(X_val)[:, 1]
+    """Prints the classification report and confusion matrix for the
+    given validation data and classifier.
 
-    print(classification_report(y_val, y_pred))
-    # Calculate metrics
-    accuracy = accuracy_score(y_val, y_pred)
-    # f1 = f1_score(y_val, y_pred, labels=classifier.classes_)
-    # precision = precision_score(y_val, y_pred, labels=classifier.classes_)
-    recall = recall_score(y_val, y_pred, labels=classifier.classes_)
-    roc_auc = roc_auc_score(y_val, y_proba, labels=classifier.classes_)
+    Args:
+        classifier (CatBoostClassifier): The trained classifier to evaluate.
+        X_val (np.ndarray): Validation features.
+        y_val (np.ndarray): Actual validation labels.
+
+    Returns:
+        None: This function does not return anything. It prints the
+            classification report and displays a confusion matrix heatmap.
+    """
+    y_pred = classifier.predict(X_val)
+    # y_proba = classifier.predict_proba(X_val)[:, 1]
 
     # Print formatted report
     print("Binary Classification Report:")
     print("-----------------------------")
     print(classification_report(y_val, y_pred))
-    print(f"Accuracy: {accuracy:.2f}")
-    print(f"F1 Score: {f1:.2f}")
-    print(f"Precision: {precision:.2f}")
-    print(f"Recall: {recall:.2f}")
-    print(f"ROC AUC: {roc_auc:.2f}")
 
     # Confusion Matrix
     cm = confusion_matrix(y_val, y_pred)
